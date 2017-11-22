@@ -1,0 +1,66 @@
+#!/usr/bin/env python
+import argparse # optparse is deprecated
+from itertools import islice # slicing for iterators
+ 
+def word_matches(h, ref):
+    return sum(1 for w in h if w in ref)
+ 
+def main():
+    parser = argparse.ArgumentParser(description='Evaluate translation hypotheses.')
+    parser.add_argument('-i', '--input', default='data/hyp1-hyp2-ref',
+            help='input file (default data/hyp1-hyp2-ref)')
+    parser.add_argument('-n', '--num_sentences', default=None, type=int,
+            help='Number of hypothesis pairs to evaluate')
+    # note that if x == [1, 2, 3], then x[:None] == x[:] == x (copy); no need for sys.maxint
+    opts = parser.parse_args()
+ 
+    # we create a generator and avoid loading all sentences into a list
+    def sentences():
+        with open(opts.input) as f:
+            for pair in f:
+                yield [sentence.strip().split() for sentence in pair.split(' ||| ')]
+ 
+    # note: the -n option does not work in the original code
+    for h1, h2, ref in islice(sentences(), opts.num_sentences):
+        rset = set(ref)
+        h1_match = word_matches(h1, rset)
+        h2_match = word_matches(h2, rset)
+        # print(1 if h1_match > h2_match else # \begin{cases}
+        #         (0 if h1_match == h2_match
+        #             else -1)) # \end{cases}
+        alpha = 0.95
+        # count = 0
+        # for i = range(len(h1)):
+        #     if i < len(ref):
+        #         break
+        #     if h1[i] == ref[i]:
+        #         count += 1
+        # p = count * 1.0 / len(ref)
+        
+        # for i = range(len(h2)):
+        #     if i < len(ref):
+        #         break
+        #     if h2[i] == ref[i]:
+        #         count += 1
+
+
+        p1 = (h1_match * 1.0) / len(rset)
+        r1 = (h1_match * 1.0) / len(h1)
+        l1 = 0
+        if p1 + r1 != 0:
+            l1 = p1 * r1 * 2.0 / ((1 - alpha) * p1 + alpha * r1)
+        
+        p2 = (h2_match * 1.0) / len(rset)
+        r2 = (h2_match * 1.0) / len(h2)
+        l2 = 0
+        if p2 + r2 != 0:
+            l2 = p2 * r2 * 2.0 / ((1 - alpha) * p2 + alpha * r2)
+        
+        print(1 if l1 > l2 else # \begin{cases}
+                (0 if l1 == l2
+                    else -1)) # \end{cases}
+       
+ 
+# convention to allow import of this file as a module
+if __name__ == '__main__':
+    main()
