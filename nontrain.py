@@ -5,7 +5,7 @@ from sklearn import svm
 # from nltk.corpus import wordnet as wn
 from nltk import pos_tag
 
-alpha = 0.5
+
 def word_matches(h, ref):
     return sum(1 for w in h if w in ref)
 
@@ -38,7 +38,7 @@ def string_match(h1, h2, ref, n):
     r1 = h1_match * 1.0 / len(h1_ngram)
     f1 = 0.0
     if p1 + r1 != 0:
-        f1 =  p1 * r1 / (alpha * p1 + (1 - alpha) * r1)
+        f1 = 2 * p1 * r1 / (p1 + r1)
 
     p2 = h2_match * 1.0 / len(rset)
     r2 = h2_match * 1.0 / len(h2_ngram)
@@ -74,9 +74,8 @@ def pos_match(l, h1_pos, h2_pos, ref_pos):
 def feature_extraction(h1, h2, ref):
     l = []
     # word count
-    rset = set(ref)
-    h1_match = word_matches(h1, rset)
-    h2_match = word_matches(h2, rset)
+    h1_match = word_matches(h1, ref)
+    h2_match = word_matches(h2, ref)
    
     l.append((h1_match - h2_match) * 1.0 / len(ref))
    
@@ -93,16 +92,13 @@ def feature_extraction(h1, h2, ref):
         l.append(metrics[1])
         l.append(metrics[2])
         ave_p += metrics[0]
-    l.append(ave_p / 4)
+    l.append(ave_p / 3)
     # POS
     h1_pos = pos_tag(h1)
     h2_pos = pos_tag(h2)
     ref_pos = pos_tag(ref)
     pos_match(l, h1_pos, h2_pos, ref_pos)
-    # similarity between h1 and h2
-    h2set = set(h2)
-    h_match = word_matches(h1, h2set)
-    l.append(h_match * 1.0 / len(h2))
+    # similarity
 
     return l
 
@@ -125,63 +121,18 @@ def main():
             for pair in f:
                 yield [sentence.strip().split() for sentence in pair.split(' ||| ')]
 
-    print "Preparing training data..."
-    TRAIN_SIZE = 18000
-    
-    dev_train = []
-    dev_class = []
-    
-    ln = 0
-    with open(opts.golden) as f:  
-        for line in f:
-            if len(dev_class) < TRAIN_SIZE:
-                if ln % 3 == 0:
-                    cl = int(line)
-                    dev_class.append(cl)
-            else:
-                break
-            ln += 1
    
     ln = 0
-    for h1, h2, ref in islice(sentences(), opts.num_sentences):
-        if len(dev_train) < TRAIN_SIZE:
-            if ln % 3 == 0:
-                fts = feature_extraction(h1, h2, ref)
-                dev_train.append(fts)
-        else:
-            break
-        ln += 1        
-
-    print "Finish preparation"
-    print len(dev_class)
-    print len(dev_train)
-    
-    print "Start to train..."
-    clf = svm.SVC(kernel='linear')
-    clf.fit(dev_train, dev_class)
-    print "Training is finished"
-    
-
-    # predict
-    f = open("eval.out", 'w')
-    print "Predicting on train..."
-    
-    # idx = 0
-    # right = 0
-    # for fts in dev_train:
-    #     ans = clf.predict([fts])
-    #     if dev_class[idx] == ans:
-    #         right += 1
-    #     idx += 1
-    #     f.write(str(ans[0]) + "\n")
-    # print right
-    for h1, h2, ref in islice(sentences(), opts.num_sentences):
+    for h1, h2, ref in islice(sentences(), opts.num_sentences):       
         fts = feature_extraction(h1, h2, ref)
-        ans = clf.predict([fts])
-        f.write(str(ans[0]) + "\n")
-    f.close()
-    
-    print "Finish"
+        ans = sum(fts)
+        if ans > 0.5:
+            print 1
+        elif ans < -0.5:
+            print -1
+        else:
+            print 0
+  
 
 # def tmp():
 #     f = open("eval.out", 'w')
