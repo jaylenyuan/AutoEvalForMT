@@ -34,12 +34,10 @@ def main():
     # note: the -n option does not work in the original code
     for h1, h2, ref in islice(sentences(), opts.num_sentences):
         
-        l1 = simple_meteor(h1, ref) + nontrain.feature_evalutaion(h1, ref)
-        l2 = simple_meteor(h2, ref) + nontrain.feature_evalutaion(h2, ref)
-        # simi = simple_meteor(h1, h2) + nontrain.feature_evalutaion(h1, h2)
-        # print l1, l2, simi
-        # diff = abs(l1 - l2)
+        l1 = simple_meteor(h1, ref) + 0.3 * nontrain.feature_evalutaion(h1, ref)
+        l2 = simple_meteor(h2, ref) + 0.3 * nontrain.feature_evalutaion(h2, ref)
        
+        
         print(1 if l1 > l2 else # \begin{cases}
             (0 if l1 == l2
                 else -1)) # \end{cases}

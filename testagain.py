@@ -76,18 +76,18 @@ def penalty(h, ref):
         chunks = max(l)
         match = sum(l)
         return 0.5 * chunks / match
-    return 1
+    return 0
 
 def feature_evalutaion(h, ref):
     l = 0
     # String match
-    l += n_gram(h, ref)
+    l = n_gram(h, ref)
     # POS
     h_pos = pos_tag(h)
     ref_pos = pos_tag(ref)
-    l += 0.5 * pos_match(h_pos, ref_pos)
+    p = pos_match(h_pos, ref_pos)
     
-    return l
+    return l, p
 def main():
     from sklearn import svm
     parser = argparse.ArgumentParser(description='Evaluate translation hypotheses.')
@@ -112,66 +112,75 @@ def main():
     
     dev_train = []
     dev_class = []
-     
+    linenum = set([])
     ln = 0
+    zeros = 0
     with open(opts.golden) as f:  
         for line in f:
-            if ln <  TRAIN_SIZE:
+            if len(dev_class) < TRAIN_SIZE:
                 cl = int(line)
                 if cl != 0:
-                    dev_class.append(1)
+                    if len(dev_class) - zeros < TRAIN_SIZE / 2:
+                        dev_class.append(1)
+                        linenum.add(ln)
                 else:
-                    dev_class.append(0)          
+                    if zeros < TRAIN_SIZE / 2:
+                        dev_class.append(0)   
+                        linenum.add(ln)
+                        zeros += 1    
                 ln += 1
             else:
                 break
-
-   
+    print len(dev_class)
     ln = 0
+    
     for h1, h2, ref in islice(sentences(), opts.num_sentences):
-        if ln < TRAIN_SIZE:
-            l1 = feature_evalutaion(h1, ref) + 0.5 * simple_meteor(h1, ref) 
-            l2 = feature_evalutaion(h2, ref) + 0.5 * simple_meteor(h2, ref)
-            fts = [l1, l2]
-            dev_train.append(fts)
-            ln += 1
+        if len(dev_train) < TRAIN_SIZE:
+            if ln in linenum:
+                l1, p1 = feature_evalutaion(h1, ref) 
+                l2, p2 = feature_evalutaion(h2, ref)
+                sm1 = simple_meteor(h1, ref)
+                sm2 = simple_meteor(h2, ref)
+                fts = [l1, l2, p1, p2, sm1, sm2]
+                dev_train.append(fts)  
         else:
             break
+        ln += 1
     
-    print "Finish preparation"
-    print len(dev_class)
     print len(dev_train)
-    
+    print "Finish preparation"
     print "Start to train..."
-    clf = svm.SVC(kernel='linear')
+    clf = svm.SVC()
     clf.fit(dev_train, dev_class)
     print "Training is finished"
     
     # predict
-    f = open("eval.out", 'w')
+    f = open("train.out", 'w')
     print "Predicting on..."
     
     for h1, h2, ref in islice(sentences(), opts.num_sentences):
-        l1 = feature_evalutaion(h1, ref) + 0.5 * simple_meteor(h1, ref) 
-        l2 = feature_evalutaion(h2, ref) + 0.5 * simple_meteor(h2, ref)
-        fts = [l1, l2]
+        l1, p1 = feature_evalutaion(h1, ref) 
+        l2, p2 = feature_evalutaion(h2, ref)
+        sm1 = simple_meteor(h1, ref)
+        sm2 = simple_meteor(h2, ref)
+        
+        fts = [l1, l2, p1, p2, sm1, sm2]
         ans = clf.predict([fts])
         f.write(str(ans[0]) + "\n")
+        # if ans[0] == 0:
+        #     f.write("0\n")
+        # else:
+        #     sore1 = sm1 + 0.3 * (0.5 * p1 + l1)
+        #     sore2 = sm2 + 0.3 * (0.5 * p2 + l2)
+        #     if sore1 == sore2:
+        #         f.write("0\n")
+        #     elif sore1 < sore2:
+        #         f.write("-1\n")
+        #     else:
+        #         f.write("1\n")
+        
     f.close()
-    # idx = 0
-    # right = 0
-    # for fts in dev_train:
-    #     ans = clf.predict([fts])
-    #     if dev_class[idx] == ans:
-    #         right += 1
-    #     idx += 1
-    #     pred = ans[0]
-    #     if fts[0] > fts[1] and pred == 1:
-    #         f.write("1\n")
-    #     elif fts[0] < fts[1] and pred == -1:
-    #         f.write("-1\n")
-    #     else:
-    #         f.write("0\n")
+    
    
     # print right
 if __name__ == '__main__':
